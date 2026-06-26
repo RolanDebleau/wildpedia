@@ -1,0 +1,17 @@
+Options -Indexes
+RewriteEngine On
+
+# Redirect ke HTTPS (aktifkan jika server sudah HTTPS)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Arahkan semua request ke index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L,QSA]
+
+# Larang akses ke file sensitif
+<FilesMatch "\.(env|json|lock|log|sh|sql)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
