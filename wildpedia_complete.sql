@@ -1,9 +1,9 @@
--- WildPedia Indonesia — Skema Database
--- Jalankan file ini di MySQL/MariaDB
-
 CREATE DATABASE IF NOT EXISTS wildpedia CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 USE wildpedia;
+
+
+-- TABEL
 
 -- Tabel utama hewan
 CREATE TABLE IF NOT EXISTS animals (
@@ -60,26 +60,46 @@ CREATE TABLE IF NOT EXISTS identify_logs (
     updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Contoh data ancaman
-INSERT IGNORE INTO threats (name, icon) VALUES
-    ('Perburuan Liar', NULL),
-    ('Kehilangan Habitat', NULL),
-    ('Deforestasi', NULL),
-    ('Perdagangan Ilegal', NULL),
-    ('Perubahan Iklim', NULL),
-    ('Polusi', NULL),
-    ('Konflik Manusia-Satwa', NULL);
+-- Tabel users (akun pengunjung biasa, beda dari admin)
+CREATE TABLE IF NOT EXISTS users (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    username   VARCHAR(50)  NOT NULL UNIQUE,
+    email      VARCHAR(150) NOT NULL UNIQUE,
+    password   VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_username (username),
+    INDEX idx_email    (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabel komentar pengunjung
+-- (users dibuat dulu di atas agar FK valid)
+CREATE TABLE IF NOT EXISTS comments (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    animal_id  INT UNSIGNED NOT NULL,
+    user_id    INT UNSIGNED NULL,
+    nama       VARCHAR(100) NOT NULL,
+    isi        TEXT NOT NULL,
+    approved   TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (animal_id) REFERENCES animals(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE SET NULL,
+    INDEX idx_animal   (animal_id),
+    INDEX idx_approved (approved),
+    INDEX idx_user     (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabel admin
+CREATE TABLE IF NOT EXISTS admins (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username   VARCHAR(100) NOT NULL UNIQUE,
+    password   VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+-- DATA AWAL: ANCAMAN
 
--- WildPedia Indonesia — Data Hewan
--- Jalankan SETELAH schema.sql
-
-USE wildpedia;
-
--- -------------------------------------------------------
--- 1. Ancaman
--- -------------------------------------------------------
 INSERT INTO threats (name, icon) VALUES
     ('Perburuan liar',           NULL),
     ('Deforestasi',              NULL),
@@ -96,14 +116,13 @@ INSERT INTO threats (name, icon) VALUES
     ('Pengambilan telur',        NULL),
     ('Pemeliharaan ilegal',      NULL);
 
--- -------------------------------------------------------
--- 2. Hewan
--- -------------------------------------------------------
+-- DATA AWAL: HEWAN
+
 INSERT INTO animals
-    (name, latin, sl_nameug, type, status, habitat, food, population, size, description, fun_fact, image_url, conservation_action, is_endemic)
+    (name, latin_name, slug, type, status, habitat, food, population, size, description, fun_fact, image_url, conservation_action, is_endemic)
 VALUES
 
--- === KRITIS (CR) ===
+--  KRITIS (CR) 
 (
     'Harimau Sumatera', 'Panthera tigris sumatrae', 'harimau-sumatera',
     'Mamalia', 'CR',
@@ -177,7 +196,7 @@ VALUES
     1
 ),
 
--- === TERANCAM (EN) ===
+--  TERANCAM (EN) 
 (
     'Komodo', 'Varanus komodoensis', 'komodo',
     'Reptil', 'EN',
@@ -311,7 +330,7 @@ VALUES
     1
 ),
 
--- === RENTAN (VU) ===
+--  RENTAN (VU) 
 (
     'Penyu Belimbing', 'Dermochelys coriacea', 'penyu-belimbing',
     'Reptil', 'VU',
@@ -385,7 +404,7 @@ VALUES
     0
 ),
 
--- === TIDAK TERANCAM (LC) ===
+--  TIDAK TERANCAM (LC) 
 (
     'Buaya Muara', 'Crocodylus porosus', 'buaya-muara',
     'Reptil', 'LC',
@@ -435,81 +454,41 @@ VALUES
     0
 );
 
--- -------------------------------------------------------
--- 3. Relasi ancaman
--- -------------------------------------------------------
+-- DATA AWAL: RELASI ANCAMAN
+
 INSERT INTO animal_threat (animal_id, threat_id)
 SELECT a.id, t.id FROM animals a, threats t WHERE
-    (a.slug='harimau-sumatera'      AND t.name IN ('Perburuan liar','Deforestasi','Konflik dengan manusia','Perdagangan ilegal')) OR
-    (a.slug='orangutan-sumatra'     AND t.name IN ('Deforestasi','Kebakaran hutan','Perdagangan ilegal','Alih fungsi lahan')) OR
-    (a.slug='badak-jawa'            AND t.name IN ('Perburuan liar','Alih fungsi lahan','Perubahan iklim')) OR
-    (a.slug='gajah-sumatera'        AND t.name IN ('Konflik dengan manusia','Deforestasi','Perburuan liar','Alih fungsi lahan')) OR
-    (a.slug='pesut-mahakam'         AND t.name IN ('Tangkap sampingan','Polusi','Alih fungsi lahan')) OR
+    (a.slug='harimau-sumatera'          AND t.name IN ('Perburuan liar','Deforestasi','Konflik dengan manusia','Perdagangan ilegal')) OR
+    (a.slug='orangutan-sumatra'         AND t.name IN ('Deforestasi','Kebakaran hutan','Perdagangan ilegal','Alih fungsi lahan')) OR
+    (a.slug='badak-jawa'                AND t.name IN ('Perburuan liar','Alih fungsi lahan','Perubahan iklim')) OR
+    (a.slug='gajah-sumatera'            AND t.name IN ('Konflik dengan manusia','Deforestasi','Perburuan liar','Alih fungsi lahan')) OR
+    (a.slug='pesut-mahakam'             AND t.name IN ('Tangkap sampingan','Polusi','Alih fungsi lahan')) OR
     (a.slug='kura-kura-leher-ular-roti' AND t.name IN ('Perdagangan ilegal','Pemeliharaan ilegal','Perubahan iklim')) OR
-    (a.slug='komodo'                AND t.name IN ('Perubahan iklim','Perburuan liar','Alih fungsi lahan')) OR
-    (a.slug='elang-jawa'            AND t.name IN ('Deforestasi','Perburuan liar','Perdagangan ilegal')) OR
-    (a.slug='tapir-asia'            AND t.name IN ('Deforestasi','Perburuan liar','Alih fungsi lahan','Konflik dengan manusia')) OR
-    (a.slug='hiu-paus'              AND t.name IN ('Tangkap sampingan','Perburuan liar','Polusi')) OR
-    (a.slug='bekantan'              AND t.name IN ('Deforestasi','Alih fungsi lahan','Perburuan liar')) OR
-    (a.slug='merak-hijau'           AND t.name IN ('Perburuan liar','Alih fungsi lahan','Perdagangan ilegal')) OR
-    (a.slug='owa-jawa'              AND t.name IN ('Deforestasi','Perdagangan ilegal','Pemeliharaan ilegal')) OR
-    (a.slug='kucing-bakau'          AND t.name IN ('Alih fungsi lahan','Polusi','Perdagangan ilegal')) OR
-    (a.slug='anoa-dataran-rendah'   AND t.name IN ('Perburuan liar','Alih fungsi lahan','Penyakit')) OR
-    (a.slug='lutung-jawa'           AND t.name IN ('Deforestasi','Perdagangan ilegal','Pemeliharaan ilegal')) OR
-    (a.slug='maleo'                 AND t.name IN ('Pengambilan telur','Introduksi spesies asing','Deforestasi')) OR
-    (a.slug='penyu-belimbing'       AND t.name IN ('Tangkap sampingan','Polusi','Pengambilan telur','Perubahan iklim')) OR
-    (a.slug='kukang-sumatera'       AND t.name IN ('Perdagangan ilegal','Pemeliharaan ilegal','Deforestasi')) OR
-    (a.slug='rangkong-badak'        AND t.name IN ('Perdagangan ilegal','Deforestasi','Perburuan liar')) OR
-    (a.slug='babi-rusa'             AND t.name IN ('Perburuan liar','Alih fungsi lahan')) OR
-    (a.slug='tarsius-sulawesi'      AND t.name IN ('Deforestasi','Perdagangan ilegal','Pemeliharaan ilegal')) OR
-    (a.slug='kepiting-kenari'       AND t.name IN ('Perburuan liar','Alih fungsi lahan')) OR
-    (a.slug='buaya-muara'           AND t.name IN ('Perburuan liar','Alih fungsi lahan','Konflik dengan manusia')) OR
+    (a.slug='komodo'                    AND t.name IN ('Perubahan iklim','Perburuan liar','Alih fungsi lahan')) OR
+    (a.slug='elang-jawa'                AND t.name IN ('Deforestasi','Perburuan liar','Perdagangan ilegal')) OR
+    (a.slug='tapir-asia'                AND t.name IN ('Deforestasi','Perburuan liar','Alih fungsi lahan','Konflik dengan manusia')) OR
+    (a.slug='hiu-paus'                  AND t.name IN ('Tangkap sampingan','Perburuan liar','Polusi')) OR
+    (a.slug='bekantan'                  AND t.name IN ('Deforestasi','Alih fungsi lahan','Perburuan liar')) OR
+    (a.slug='merak-hijau'               AND t.name IN ('Perburuan liar','Alih fungsi lahan','Perdagangan ilegal')) OR
+    (a.slug='owa-jawa'                  AND t.name IN ('Deforestasi','Perdagangan ilegal','Pemeliharaan ilegal')) OR
+    (a.slug='kucing-bakau'              AND t.name IN ('Alih fungsi lahan','Polusi','Perdagangan ilegal')) OR
+    (a.slug='anoa-dataran-rendah'       AND t.name IN ('Perburuan liar','Alih fungsi lahan','Penyakit')) OR
+    (a.slug='lutung-jawa'               AND t.name IN ('Deforestasi','Perdagangan ilegal','Pemeliharaan ilegal')) OR
+    (a.slug='maleo'                     AND t.name IN ('Pengambilan telur','Introduksi spesies asing','Deforestasi')) OR
+    (a.slug='penyu-belimbing'           AND t.name IN ('Tangkap sampingan','Polusi','Pengambilan telur','Perubahan iklim')) OR
+    (a.slug='kukang-sumatera'           AND t.name IN ('Perdagangan ilegal','Pemeliharaan ilegal','Deforestasi')) OR
+    (a.slug='rangkong-badak'            AND t.name IN ('Perdagangan ilegal','Deforestasi','Perburuan liar')) OR
+    (a.slug='babi-rusa'                 AND t.name IN ('Perburuan liar','Alih fungsi lahan')) OR
+    (a.slug='tarsius-sulawesi'          AND t.name IN ('Deforestasi','Perdagangan ilegal','Pemeliharaan ilegal')) OR
+    (a.slug='kepiting-kenari'           AND t.name IN ('Perburuan liar','Alih fungsi lahan')) OR
+    (a.slug='buaya-muara'               AND t.name IN ('Perburuan liar','Alih fungsi lahan','Konflik dengan manusia')) OR
     (a.slug='cenderawasih-kuning-kecil' AND t.name IN ('Perdagangan ilegal','Deforestasi')) OR
-    (a.slug='kancil'                AND t.name IN ('Perburuan liar','Alih fungsi lahan')) OR
-    (a.slug='monyet-ekor-panjang'   AND t.name IN ('Konflik dengan manusia','Alih fungsi lahan'));
--- -------------------------------------------------------
--- Tabel users (akun pengunjung biasa, untuk register/login & komentar)
--- Dibuat SEBELUM comments karena comments punya FK ke users
--- -------------------------------------------------------
-CREATE TABLE IF NOT EXISTS users (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    name       VARCHAR(100) NOT NULL,
-    username   VARCHAR(50)  NOT NULL UNIQUE,
-    email      VARCHAR(150) NOT NULL UNIQUE,
-    password   VARCHAR(255) NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_username (username),
-    INDEX idx_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    (a.slug='kancil'                    AND t.name IN ('Perburuan liar','Alih fungsi lahan')) OR
+    (a.slug='monyet-ekor-panjang'       AND t.name IN ('Konflik dengan manusia','Alih fungsi lahan'));
 
--- -------------------------------------------------------
--- Tabel komentar pengunjung
--- -------------------------------------------------------
-CREATE TABLE IF NOT EXISTS comments (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    animal_id  INT UNSIGNED NOT NULL,
-    user_id    INT UNSIGNED NULL,
-    nama       VARCHAR(100) NOT NULL,
-    isi        TEXT NOT NULL,
-    approved   TINYINT(1) NOT NULL DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (animal_id) REFERENCES animals(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE SET NULL,
-    INDEX idx_animal   (animal_id),
-    INDEX idx_approved (approved),
-    INDEX idx_user     (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- DATA AWAL: ADMIN DEFAULT
+-- username : admin
+-- password : admin123  (segera ganti setelah login pertama!)
 
--- -------------------------------------------------------
--- Tabel admin
--- -------------------------------------------------------
-CREATE TABLE IF NOT EXISTS admins (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    username   VARCHAR(100) NOT NULL UNIQUE,
-    password   VARCHAR(255) NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Admin default: username = admin | password = admin123
 INSERT IGNORE INTO admins (username, password)
 VALUES ('admin', '$2y$10$ZQHNFlr3R3fMdyew2ovJQ.DCJXowuAkVXnoTxCfJifOvZFptJ6fX2');

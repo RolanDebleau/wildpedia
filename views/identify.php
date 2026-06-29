@@ -13,7 +13,7 @@ require __DIR__ . '/layouts/header.php';
     <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-gray-900">Identifikasi Hewan</h1>
         <p class="text-gray-500 mt-2 text-sm">
-            Upload foto hewan yang kamu jumpai, kami akan mengidentifikasinya menggunakan AI dari iNaturalist
+            Upload foto hewan yang kamu jumpai, kami akan mengidentifikasinya menggunakan AI (Hugging Face)
         </p>
     </div>
 

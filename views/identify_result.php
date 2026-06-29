@@ -56,40 +56,32 @@ require __DIR__ . '/layouts/header.php';
         </div>
         <?php endif; ?>
 
-        <!-- Hasil dari iNaturalist -->
+        <!-- Hasil dari Hugging Face -->
         <?php if (!empty($topResults)): ?>
         <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <h2 class="font-bold text-gray-800 mb-4">Hasil Identifikasi AI (iNaturalist)</h2>
+            <h2 class="font-bold text-gray-800 mb-1">Hasil Identifikasi AI</h2>
+            <p class="text-xs text-gray-400 mb-4">Model: google/vit-base-patch16-224 (Hugging Face Inference API)</p>
             <div class="space-y-3">
                 <?php foreach ($topResults as $i => $result):
-                    $taxon   = $result['taxon']   ?? [];
-                    $name    = $taxon['name']      ?? 'Tidak diketahui';
-                    $common  = $taxon['preferred_common_name'] ?? '-';
-                    $score   = round(($result['combined_score'] ?? 0) * 100, 1);
-                    $imgUrl  = $taxon['default_photo']['medium_url'] ?? null;
-                    $rank    = $taxon['rank'] ?? '';
+                    $rawLabel = $result['label'] ?? 'Tidak diketahui';
+                    // Label model ImageNet sering berformat "tiger, Panthera tigris"
+                    $labelParts = explode(',', $rawLabel);
+                    $name       = trim($labelParts[0]);
+                    $altName    = isset($labelParts[1]) ? trim($labelParts[1]) : null;
+                    $score      = round(($result['score'] ?? 0) * 100, 1);
                 ?>
                 <div class="flex items-center gap-3 p-3 rounded-xl <?= $i === 0 ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-100' ?>">
                     <span class="text-lg font-bold text-gray-400 w-6"><?= $i + 1 ?></span>
 
-                    <?php if ($imgUrl): ?>
-                    <img src="<?= htmlspecialchars($imgUrl, ENT_QUOTES) ?>"
-                         alt="<?= htmlspecialchars($name, ENT_QUOTES) ?>"
-                         class="w-14 h-14 object-cover rounded-lg flex-shrink-0">
-                    <?php else: ?>
-                    <div class="w-14 h-14 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 text-gray-400 text-xs text-center">No img</div>
-                    <?php endif; ?>
-
                     <div class="flex-1 min-w-0">
-                        <p class="font-semibold text-sm <?= $i === 0 ? 'text-green-800' : 'text-gray-700' ?> truncate">
-                            <?= htmlspecialchars($common !== '-' ? $common : $name, ENT_QUOTES) ?>
-                        </p>
-                        <p class="text-xs text-gray-400 italic truncate">
+                        <p class="font-semibold text-sm <?= $i === 0 ? 'text-green-800' : 'text-gray-700' ?> truncate capitalize">
                             <?= htmlspecialchars($name, ENT_QUOTES) ?>
                         </p>
-                        <p class="text-xs text-gray-400 capitalize">
-                            <?= htmlspecialchars($rank, ENT_QUOTES) ?>
+                        <?php if ($altName): ?>
+                        <p class="text-xs text-gray-400 italic truncate">
+                            <?= htmlspecialchars($altName, ENT_QUOTES) ?>
                         </p>
+                        <?php endif; ?>
                     </div>
 
                     <div class="text-right flex-shrink-0">
@@ -103,6 +95,10 @@ require __DIR__ . '/layouts/header.php';
                 </div>
                 <?php endforeach; ?>
             </div>
+            <p class="text-xs text-gray-400 mt-4">
+                Model ini dilatih dengan dataset umum (ImageNet) dan belum dikhususkan untuk satwa Indonesia,
+                sehingga label hasil kadang berupa nama umum berbahasa Inggris.
+            </p>
         </div>
         <?php endif; ?>
 

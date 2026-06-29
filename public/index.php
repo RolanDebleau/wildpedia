@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-// ----- Bootstrap -----
 session_start();
 
 define('ROOT_PATH',   dirname(__DIR__));

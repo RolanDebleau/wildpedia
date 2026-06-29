@@ -33,8 +33,6 @@ class User
         return $row ?: null;
     }
 
-    // Cari berdasarkan username ATAU email, dipakai di form login
-    // supaya user bisa login pakai salah satu dari keduanya.
     public static function findByUsernameOrEmail(string $identifier): ?array
     {
         $db   = DB::connect();

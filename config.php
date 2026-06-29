@@ -6,10 +6,14 @@ return [
         'port' => '3306',
         'name' => 'wildpedia',
         'user' => 'root',
-        'pass' => '@Marbabung123',
+        'pass' => '',
     ],
     'app' => [
         'name' => 'WildPedia Indonesia',
         'url'  => 'http://localhost/wildpedia/public',
+    ],
+    'huggingface' => [
+        'token' => '',
+        'model' => 'google/vit-base-patch16-224',
     ],
 ];

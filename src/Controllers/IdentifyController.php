@@ -50,16 +50,21 @@ class IdentifyController
         }
 
         try {
-            $topResults = $this->callInatApi($destPath, $file['name']);
+            $predictions = $this->callHuggingFaceApi($destPath);
 
             // Cocokkan dengan database
             $matched = null;
 
-            foreach ($topResults as $result) {
-                $latinName  = $result['taxon']['name']                  ?? '';
-                $commonName = $result['taxon']['preferred_common_name'] ?? '';
+            foreach ($predictions as $pred) {
+                $rawLabel = $pred['label'] ?? '';
 
-                $matched = Animal::findByNameOrLatin($commonName, $latinName);
+                // Label ImageNet umumnya "nama_inggris, nama latin (opsional)"
+                // contoh: "tiger, Panthera tigris" atau "Tiger Cat"
+                $labelParts = array_map('trim', explode(',', $rawLabel));
+                $englishName = $labelParts[0] ?? '';
+                $latinHint   = $labelParts[1] ?? '';
+
+                $matched = Animal::findBySpeciesHint($englishName, $latinHint);
 
                 if ($matched) break;
             }
@@ -67,19 +72,21 @@ class IdentifyController
             // Simpan log
             IdentifyLog::create([
                 'image_path'        => $filename,
-                'api_result'        => json_encode($topResults),
-                'identified_animal' => $topResults[0]['taxon']['name'] ?? null,
-                'confidence'        => isset($topResults[0]['combined_score'])
-                                       ? round($topResults[0]['combined_score'] * 100, 1)
+                'api_result'        => json_encode($predictions),
+                'identified_animal' => $predictions[0]['label'] ?? null,
+                'confidence'        => isset($predictions[0]['score'])
+                                       ? round($predictions[0]['score'] * 100, 1)
                                        : null,
                 'user_ip'           => Helper::ip(),
             ]);
 
+            // Disamakan dengan nama variabel yang dipakai di identify_result.php
+            $topResults = $predictions;
+
             require VIEWS_PATH . '/identify_result.php';
 
         } catch (\Exception $e) {
-            $error     = 'Identifikasi gagal: ' . $e->getMessage()
-                         . ' Pastikan server terhubung ke internet.';
+            $error     = 'Identifikasi gagal: ' . $e->getMessage();
             $imagePath = BASE_URL . '/uploads/' . $filename;
 
             require VIEWS_PATH . '/identify.php';
@@ -123,23 +130,41 @@ class IdentifyController
         return $errors;
     }
 
-    private function callInatApi(string $filePath, string $originalName): array
+    private function callHuggingFaceApi(string $filePath): array
     {
-        $url = 'https://api.inaturalist.org/v1/computervision/score_image';
+        if (!function_exists('curl_init')) {
+            throw new \RuntimeException(
+                'Ekstensi PHP cURL belum aktif. Buka php.ini di Laragon, hilangkan tanda ";" ' .
+                'di depan baris "extension=curl", lalu restart Apache.'
+            );
+        }
 
-        $cfile = new \CURLFile($filePath, mime_content_type($filePath), $originalName);
+        $config = require ROOT_PATH . '/config.php';
+        $token  = $config['huggingface']['token'] ?? '';
+        $model  = $config['huggingface']['model'] ?? 'google/vit-base-patch16-224';
+
+        if ($token === '' || str_starts_with($token, 'hf_xxxx')) {
+            throw new \RuntimeException(
+                'Token Hugging Face belum diisi. Buka config.php dan isi huggingface.token ' .
+                'dengan token dari https://huggingface.co/settings/tokens.'
+            );
+        }
+
+        $url = "https://router.huggingface.co/hf-inference/models/{$model}";
+
+        $imageData = file_get_contents($filePath);
+        $mimeType  = mime_content_type($filePath);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => [
-                'image' => $cfile,
-                'lat'   => -2.5,
-                'lng'   => 118.0,
-            ],
+            CURLOPT_POSTFIELDS     => $imageData,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 30,
-            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $token,
+                'Content-Type: ' . $mimeType,
+            ],
         ]);
 
         $body  = curl_exec($ch);
@@ -151,16 +176,35 @@ class IdentifyController
             throw new \RuntimeException('cURL error: ' . $error);
         }
 
+        if ($code === 503) {
+            throw new \RuntimeException('Model sedang dimuat di server Hugging Face, coba lagi dalam beberapa saat.');
+        }
+
+        if ($code === 401) {
+            throw new \RuntimeException('Token Hugging Face tidak valid atau sudah tidak berlaku.');
+        }
+
         if ($code < 200 || $code >= 300) {
-            throw new \RuntimeException("API mengembalikan status {$code}.");
+            throw new \RuntimeException("API mengembalikan status {$code}. Respons: " . substr($body, 0, 200));
         }
 
         $data = json_decode($body, true);
 
-        if (!isset($data['results'])) {
-            throw new \RuntimeException('Respons API tidak valid.');
+        if (!is_array($data) || isset($data['error'])) {
+            throw new \RuntimeException('Respons API tidak valid: ' . ($data['error'] ?? 'format tidak dikenali'));
         }
 
-        return array_slice($data['results'], 0, 5);
+        // Response berupa array langsung: [{label, score}, ...]
+        return array_slice($data, 0, 5);
+    }
+
+    // Label model ImageNet kadang berformat "n02129165 tiger, Panthera tigris"
+    // atau "tiger, Panthera tigris" -- ambil kata pertama sebelum koma agar
+    // lebih mudah dicocokkan dengan nama umum/latin di database lokal.
+    private function cleanImagenetLabel(string $label): string
+    {
+        $label = preg_replace('/^n\d+\s+/', '', $label); // buang kode taxon ImageNet jika ada
+        $parts = explode(',', $label);
+        return trim($parts[0]);
     }
 }

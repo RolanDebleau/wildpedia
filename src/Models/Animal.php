@@ -16,11 +16,7 @@ class Animal
         [$where, $params] = self::buildWhere($filters);
 
         // Total untuk pagination
-        $countSql = "SELECT COUNT(*) FROM animals a {$where}";
-        $total = (int) $db->prepare($countSql)->execute($params)
-            ? $db->query("SELECT COUNT(*) FROM animals a {$where}")->fetchColumn()
-            : 0;
-
+        $countSql  = "SELECT COUNT(*) FROM animals a {$where}";
         $countStmt = $db->prepare($countSql);
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
@@ -142,6 +138,66 @@ class Animal
         return $row ?: null;
     }
 
+    public static function findBySpeciesHint(string $englishName, string $latinHint): ?array
+    {
+        $db = DB::connect();
+
+        if ($latinHint !== '') {
+            $words = array_filter(explode(' ', trim($latinHint)));
+            $words = array_values($words);
+
+            if (count($words) >= 2) {
+                $genusSpecies = $words[0] . ' ' . $words[1];
+
+                $stmt = $db->prepare("SELECT * FROM animals WHERE latin_name LIKE :gs LIMIT 1");
+                $stmt->execute([':gs' => "{$genusSpecies}%"]);
+                $row = $stmt->fetch();
+                if ($row) return $row;
+            }
+        }
+
+        static $dictionary = [
+            'tiger'        => 'harimau',
+            'tiger cat'    => 'harimau',
+            'orangutan'    => 'orangutan',
+            'proboscis monkey' => 'bekantan',
+            'gibbon'       => 'owa',
+            'siamang'      => 'owa',
+            'rhinoceros'   => 'badak',
+            'african elephant' => 'gajah',
+            'indian elephant'  => 'gajah',
+            'tusker'       => 'gajah',
+            'komodo dragon'    => 'komodo',
+            'leatherback turtle' => 'penyu',
+            'loggerhead turtle'  => 'penyu',
+            'box turtle'   => 'kura-kura',
+            'mud turtle'   => 'kura-kura',
+            'terrapin'     => 'kura-kura',
+            'american alligator' => 'buaya',
+            'crocodile'    => 'buaya',
+            'african crocodile' => 'buaya',
+            'macaque'      => 'monyet',
+            'langur'       => 'lutung',
+            'colobus'      => 'lutung',
+            'hornbill'     => 'rangkong',
+            'peacock'      => 'merak',
+            'whale shark'  => 'hiu paus',
+            'dugong'       => 'pesut',
+        ];
+
+        $key = strtolower(trim($englishName));
+
+        if (isset($dictionary[$key])) {
+            $keyword = $dictionary[$key];
+            $stmt = $db->prepare("SELECT * FROM animals WHERE name LIKE :kw LIMIT 1");
+            $stmt->execute([':kw' => "%{$keyword}%"]);
+            $row = $stmt->fetch();
+            if ($row) return $row;
+        }
+
+        return null;
+    }
+
     // ----- Helpers -----
 
     public static function statusLabel(string $status): string
@@ -192,9 +248,13 @@ class Animal
         $params     = [];
 
         if (!empty($filters['search'])) {
-            $conditions[] = "(a.name LIKE :search OR a.latin_name LIKE :search
-                              OR a.type LIKE :search OR a.habitat LIKE :search)";
-            $params[':search'] = '%' . $filters['search'] . '%';
+            $conditions[] = "(a.name LIKE :search1 OR a.latin_name LIKE :search2
+                              OR a.type LIKE :search3 OR a.habitat LIKE :search4)";
+            $searchTerm = '%' . $filters['search'] . '%';
+            $params[':search1'] = $searchTerm;
+            $params[':search2'] = $searchTerm;
+            $params[':search3'] = $searchTerm;
+            $params[':search4'] = $searchTerm;
         }
 
         if (!empty($filters['status'])) {
